@@ -1,125 +1,105 @@
-# Requirement
-- [Go Installed](https://golang.org/doc/install)
+# upload2dir
 
-# Development
-refer to [Extending Caddy](https://caddyserver.com/docs/extending-caddy)
+A small standalone HTTP file server that exposes a single directory over
+the network with browse / download / upload / delete / create-directory
+support. Built on [Gin](https://github.com/gin-gonic/gin) with a custom
+browse page embedded into the binary at build time.
 
-## 1. Install [xcaddy](https://github.com/caddyserver/xcaddy)
+Historically this project was a Caddy plugin (`caddyupload2dir`); it has
+been refactored into a self-contained binary so `template.html` no longer
+needs to be shipped alongside the executable.
 
-```sh
-go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
-```
+## Features
 
-## 2. build caddy with plugin caddyupload2dir
+- Directory browse UI with sortable columns (name / size / time), a
+  client-side filter, and breadcrumb navigation
+- `PUT` file upload (multipart `file` field) with progress modal
+- `POST` create directory
+- `DELETE` file or directory (recursive)
+- Range/`If-Modified-Since` aware file downloads via `http.ServeFile`
+- Optional admin password for `DELETE` (constant-time compare)
+- Path-traversal protection: every request resolves inside the configured
+  root before being touched
 
-```sh
-xcaddy build master --with github.com/crackeer/caddyupload2dir=./ --embed template:./template --debug
-```
+## Requirements
 
-## 3. run caddy with plugin caddyupload2dir
+- Go 1.22 or newer to build
 
-```sh
-./caddy -config caddy.json
-```
+## Configuration
 
-# Example:caddy.json
-apps.http.servers下的一个配置
-```json
-{
-    "static": {
-        "idle_timeout": 30000000000,
-        "listen": [
-            "0.0.0.0:80"
-        ],
-        "max_header_bytes": 10240000,
-        "read_header_timeout": 10000000000,
-        "routes": [
-            {
-                "match": [
-                    {
-                        "method": ["POST", "PUT", "DELETE"]
-                    }
-                ],
-                "handle": [
-                    {
-                        "handler": "upload2dir",
-                        "file_server_root": "/your/file/dir",
-                        "admin_password": "replace-with-a-strong-password"
-                    }
-                ],
-                "terminal": true
-            },
-            {
-                "handle": [
-                    {
-                        "handler": "file_server",
-                        "root": "/your/file/dir",
-                        "browse": {
-                            "template_file": "/new/template.html"
-                        },
-                        "index_names": [""]
-                    }
-                ]
-            }
-        ]
-    }
-}
-```
+The binary is configured entirely via environment variables:
 
-## 管理员删除密码
-设置可选的 `admin_password` 后，删除文件或空目录时，页面会提示输入管理员密码。密码仅通过 `X-Admin-Password` 请求头提交，插件在服务端校验通过后才执行删除；未配置该项时保留原有的无密码删除行为，以兼容旧配置。
+| Variable         | Default | Purpose                                                                       |
+|------------------|---------|-------------------------------------------------------------------------------|
+| `PORT`           | `8080`  | TCP port to listen on                                                          |
+| `HOME`           | `.`     | Root directory to serve. Files and directories under this path are exposed.    |
+| `ADMIN_PASSWORD` | *empty* | If set, `DELETE` requests must include `X-Admin-Password: <value>`. If unset, deletes are unauthenticated (matches the original behaviour). |
 
-Caddyfile 配置示例：
+> ⚠️ `HOME` is intentionally reused as the served-root variable so it
+> plays nicely with systemd. If the process inherits a real user's
+> `HOME` (for example when run from a shell), every file in that home
+> directory becomes writable/deletable over HTTP. Set `HOME` explicitly
+> to a dedicated data directory.
 
-```caddyfile
-upload2dir {
-    file_field_name file
-    admin_password replace-with-a-strong-password
-}
-```
-
-请仅通过 HTTPS 提供该页面，避免密码在传输中暴露；不要将真实密码提交到版本库。
-
-## what new filer_server page looks like?
-- Add create directory in current directory、upload file to current directory、delete file or directory
-- Uploading a file with an existing name preserves the existing file and stores the upload as `{FILE_NAME}-{timestamp}`.
-
-[![pppwtDU.png](https://s1.ax1x.com/2023/02/26/pppwtDU.png)](https://imgse.com/i/pppwtDU)
-
-## Build & Install as a systemd service
-
-`build.sh` compiles a caddy binary that bundles this local plugin and creates
-`caddyupload2dir.zip`. The archive extracts into a single top-level
-`caddyupload2dir/` directory:
+## Build & Run
 
 ```sh
-./build.sh            # build against caddy master
-./build.sh v2.6.4     # or a specific caddy version
+go build -o upload2dir ./...
+HOME=/srv/upload2dir PORT=8080 ADMIN_PASSWORD='replace-me' ./upload2dir
 ```
 
-The extracted directory contains `caddy`, `template.html`, `caddy.json`,
-`caddyupload2dir.service` and `install.sh`. Copy it to the target Linux machine
-(with systemd) and run:
+Then browse to <http://localhost:8080/>.
+
+## Uploading a file with an existing name
+
+If a file with the same name already exists, the upload is stored
+alongside it under `{name}-{unix_nano}` so the existing file is never
+overwritten.
+
+## Install as a systemd service
+
+`build.sh` compiles the binary and produces `upload2dir.zip` that
+extracts into a single top-level `upload2dir/` directory containing the
+binary, a systemd unit, a sample env file, and the installer:
+
+```sh
+./build.sh                           # build for the current OS/arch
+GOOS=linux GOARCH=amd64 ./build.sh   # cross-compile a Linux/amd64 build
+```
+
+Copy the archive to the target host, extract it, and run:
 
 ```sh
 sudo ./install.sh
 ```
 
-`install.sh` copies the `caddy` binary, `template.html`, and `caddy.json` into
-`/usr/local/caddy/`. If a configuration already exists, it is saved as a timestamped
-`caddy.json.bak.*` file before replacement. The installer validates the installed
-configuration, installs `caddyupload2dir.service` under `/etc/systemd/system/`, then
-reloads systemd and enables + restarts the service.
+`install.sh`:
+
+1. installs the `upload2dir` binary to `/usr/local/bin/`
+2. installs the systemd unit as `/etc/systemd/system/upload2dir.service`
+3. installs (or backs up + refreshes) `/etc/upload2dir.env`
+4. creates `/srv/upload2dir` if missing
+5. reloads systemd and enables + starts the service
+
+Edit `/etc/upload2dir.env` to change the port, served root, or admin
+password, then `systemctl restart upload2dir.service`.
 
 Useful commands after install:
 
 ```sh
-systemctl status caddyupload2dir.service
-journalctl -u caddyupload2dir.service -f
+systemctl status upload2dir.service
+journalctl -u upload2dir.service -f
 ```
 
-> The packaged configuration listens on port `8080`, serves root `/`, reads the browse
-> template from `/usr/local/caddy/template.html`, and uses the default delete password
-> `admin`. Change `file_server_root`, `root`, and `admin_password` before exposing the
-> service beyond a trusted network. Serving `/` and running the service as root provides
-> broad filesystem access.
+## HTTP surface
+
+| Method   | Path            | Description                                                             |
+|----------|-----------------|-------------------------------------------------------------------------|
+| `GET`    | `/dir/`         | Render the browse page for `dir`                                        |
+| `GET`    | `/path/to/file` | Download the file                                                       |
+| `POST`   | `/dir/name`     | Create directory `name` under `dir` (idempotent, recursive)             |
+| `PUT`    | `/dir/name`     | Upload a file to `dir/name`; multipart form field `file`                |
+| `DELETE` | `/path`         | Remove file or directory. Requires `X-Admin-Password` when configured.  |
+
+Serve this endpoint over HTTPS whenever the admin password is set —
+`X-Admin-Password` is otherwise transmitted in cleartext.

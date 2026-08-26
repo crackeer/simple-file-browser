@@ -23,17 +23,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.22'
 
-      # xcaddy itself must run on the runner's native arch, so install it
-      # before GOARCH is switched for the actual build.
-      - name: Install xcaddy
-        env:
-          GOOS: linux
-          GOARCH: amd64
-        run: go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
-
-      - name: Build caddy with upload2dir plugin
+      - name: Build upload2dir
         env:
           GOOS: linux
           GOARCH: ${{ matrix.arch }}
@@ -43,25 +35,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd dist/caddyupload2dir
-          chmod +x caddy
-          # install.sh expects the binary named "caddy" inside the tarball;
+          cd dist/upload2dir
+          chmod +x upload2dir
           # keep the arch-named copy as a standalone asset for direct download.
-          cp caddy "caddy-linux-${{ matrix.arch }}"
-          tar czf "../../caddyupload2dir-linux-${{ matrix.arch }}.tar.gz" \
-              caddy caddy.json caddyupload2dir.service install.sh template.html
+          cp upload2dir "upload2dir-linux-${{ matrix.arch }}"
+          tar czf "../../upload2dir-linux-${{ matrix.arch }}.tar.gz" \
+              upload2dir upload2dir.service upload2dir.env install.sh
           cd ../..
-          sha256sum "caddyupload2dir-linux-${{ matrix.arch }}.tar.gz" \
-              > "caddyupload2dir-linux-${{ matrix.arch }}.tar.gz.sha256"
+          sha256sum "upload2dir-linux-${{ matrix.arch }}.tar.gz" \
+              > "upload2dir-linux-${{ matrix.arch }}.tar.gz.sha256"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist-linux-${{ matrix.arch }}
           path: |
-            caddyupload2dir-linux-${{ matrix.arch }}.tar.gz
-            caddyupload2dir-linux-${{ matrix.arch }}.tar.gz.sha256
-            dist/caddyupload2dir/caddy-linux-${{ matrix.arch }}
+            upload2dir-linux-${{ matrix.arch }}.tar.gz
+            upload2dir-linux-${{ matrix.arch }}.tar.gz.sha256
+            dist/upload2dir/upload2dir-linux-${{ matrix.arch }}
 
   release:
     name: Create GitHub Release
