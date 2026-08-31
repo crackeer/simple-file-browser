@@ -787,12 +787,9 @@
         </div>
     </main>
     <footer>
-        Served with <a rel="noopener noreferrer" href="https://caddyserver.com" target="_blank"> Caddy</a>｜
-        <a  rel="noopener noreferrer" href="https://github.com/crackeer/caddyupload2dir" target="_blank">With Plugin caddyupload2dir</a>
     </footer>
     <script>
         var filterEl = document.getElementById('filter');
-        filterEl.focus({ preventScroll: true });
 
         function initFilter() {
             if (!filterEl.value) {
@@ -1135,31 +1132,47 @@
         var timeList = Array.prototype.slice.call(document.getElementsByTagName("time"));
         timeList.forEach(localizeDatetime);
 
-        var deleteFile = async (file) => {
-            let password = window.prompt("请输入管理员密码", "")
-            if (password === null) {
-                return
-            }
-
+        var doDelete = async (file, headers) => {
             try {
                 let result = await fetch(buildDirActionUrl(file), {
                     method: 'DELETE',
-                    headers: {
-                        'X-Admin-Password': password
-                    }
+                    headers: headers || {}
                 })
                 if (result.status != 200) {
                     if (result.status === 403) {
-                        alert("管理员密码错误，无法删除")
+                        alert("管理员密码错误或授权已过期，无法删除")
                     } else {
                         alert(result.statusText)
                     }
                 } else {
+                    // Remember auth for 10 minutes so the next delete only
+                    // asks for confirmation instead of the password again.
+                    document.cookie = "upload2dir_auth=1; path=/; max-age=600; SameSite=Lax"
                     window.location.reload()
                 }
             } catch (e) {
                 alert(e.message)
             }
+        }
+
+        var deleteFile = async (file) => {
+            // Cookie set by the server after a successful password check.
+            var hasAuth = document.cookie.split(';').some(function (c) {
+                return c.trim().startsWith('upload2dir_auth=')
+            })
+            if (hasAuth) {
+                if (!window.confirm("确认删除 " + file + " ?")) {
+                    return
+                }
+                doDelete(file, {})
+                return
+            }
+            let password = window.prompt("请输入管理员密码", "")
+            if (password === null) {
+                return
+            }
+            // Password-checked deletes skip the confirmation dialog.
+            doDelete(file, { 'X-Admin-Password': password })
         }
 
         var createDir = async () => {

@@ -15,6 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Auth cookie set by the client itself after a successful password check.
+const authCookieName = "upload2dir_auth"
+
 // handle dispatches a request to the appropriate handler based on HTTP method.
 // The URL path (relative to the root directory) is passed via the "reqpath"
 // gin route parameter and always starts with "/".
@@ -51,7 +54,13 @@ func (s *Server) resolve(urlPath string) (string, error) {
 
 	fullClean := filepath.Clean(full)
 	rootClean := filepath.Clean(s.RootDir)
-	if fullClean != rootClean && !strings.HasPrefix(fullClean, rootClean+string(filepath.Separator)) {
+	// When RootDir is the filesystem root, rootClean+"/" would be "//",
+	// which no real path starts with. Build the prefix accordingly.
+	rootPrefix := rootClean
+	if rootClean != string(filepath.Separator) {
+		rootPrefix = rootClean + string(filepath.Separator)
+	}
+	if fullClean != rootClean && !strings.HasPrefix(fullClean, rootPrefix) {
 		return "", errors.New("path escapes root")
 	}
 	return fullClean, nil
@@ -180,14 +189,19 @@ func (s *Server) handleUpload(c *gin.Context, urlPath string) {
 }
 
 // handleDelete removes a file or directory (including non-empty directories).
-// When ADMIN_PASSWORD is configured, the client must supply a matching value
-// via the X-Admin-Password header; comparison is constant-time.
+// When ADMIN_PASSWORD is configured, the client must either present the
+// upload2dir_auth cookie (set by the client itself after a successful
+// password check) or supply the matching value via the X-Admin-Password
+// header; comparison is constant-time.
 func (s *Server) handleDelete(c *gin.Context, urlPath string) {
 	if s.AdminPassword != "" {
-		provided := c.GetHeader("X-Admin-Password")
-		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.AdminPassword)) != 1 {
-			c.String(http.StatusForbidden, "invalid admin password")
-			return
+		cookie, err := c.Request.Cookie(authCookieName)
+		if err != nil || cookie.Value == "" {
+			provided := c.GetHeader("X-Admin-Password")
+			if subtle.ConstantTimeCompare([]byte(provided), []byte(s.AdminPassword)) != 1 {
+				c.String(http.StatusForbidden, "invalid admin password")
+				return
+			}
 		}
 	}
 	dest, err := s.resolve(urlPath)
