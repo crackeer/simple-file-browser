@@ -1,4 +1,4 @@
-module github.com/crackeer/caddyupload2dir
+module github.com/crackeer/simple-file-browser
 
 go 1.22
 

@@ -1,0 +1,21 @@
+[Unit]
+Description=simple-file-browser file server (browse / upload / download / delete)
+Documentation=https://github.com/crackeer/simple-file-browser
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Defaults; overridden by /etc/simple-file-browser.env if present.
+Environment=PORT=8080
+Environment=HOME=/srv/simple-file-browser
+Environment=ADMIN_PASSWORD=admin
+EnvironmentFile=-/etc/simple-file-browser.env
+ExecStart=/usr/local/bin/simple-file-browser
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=1048576
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# install.sh - Install upload2dir as a systemd service.
+# install.sh - Install simple-file-browser as a systemd service.
 #
 # This script:
-#   1. Copies the upload2dir binary to /usr/local/bin/
+#   1. Copies the simple-file-browser binary to /usr/local/bin/
 #   2. Installs the systemd service unit under /etc/systemd/system/
-#   3. Installs (or preserves) /etc/upload2dir.env
+#   3. Installs (or preserves) /etc/simple-file-browser.env
 #   4. Creates the served root directory if it does not exist
 #   5. Reloads systemd, enables and (re)starts the service
 #
@@ -15,11 +15,11 @@
 #
 set -euo pipefail
 
-BIN_NAME="upload2dir"
+BIN_NAME="simple-file-browser"
 BIN_DEST="/usr/local/bin/${BIN_NAME}"
-SERVICE_NAME="upload2dir.service"
+SERVICE_NAME="simple-file-browser.service"
 SERVICE_DEST="/etc/systemd/system/${SERVICE_NAME}"
-ENV_DEST="/etc/upload2dir.env"
+ENV_DEST="/etc/simple-file-browser.env"
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -28,7 +28,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-for f in "$BIN_NAME" "$SERVICE_NAME" "upload2dir.env"; do
+for f in "$BIN_NAME" "$SERVICE_NAME" "simple-file-browser.env"; do
     if [ ! -f "$SRC_DIR/$f" ]; then
         echo "Error: required file '$f' not found in $SRC_DIR" >&2
         exit 1
@@ -50,11 +50,11 @@ if [ -f "$ENV_DEST" ]; then
     cp -p "$ENV_DEST" "$BACKUP"
 fi
 echo ">> Installing env file  -> $ENV_DEST"
-install -m 0644 "$SRC_DIR/upload2dir.env" "$ENV_DEST"
+install -m 0644 "$SRC_DIR/simple-file-browser.env" "$ENV_DEST"
 
 # Ensure the served root exists; if the operator changes HOME in
-# upload2dir.env they are responsible for creating that directory.
-DEFAULT_ROOT="/srv/upload2dir"
+# simple-file-browser.env they are responsible for creating that directory.
+DEFAULT_ROOT="/srv/simple-file-browser"
 if [ ! -d "$DEFAULT_ROOT" ]; then
     echo ">> Creating default root -> $DEFAULT_ROOT"
     install -d -m 0755 "$DEFAULT_ROOT"

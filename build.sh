@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# build.sh - Build the upload2dir binary and assemble a distribution zip.
+# build.sh - Build the simple-file-browser binary and assemble a distribution zip.
 #
-# The resulting dist/upload2dir/ directory contains:
-#   - upload2dir            (statically-linked binary; template.html is embedded)
-#   - upload2dir.service    (systemd unit)
-#   - upload2dir.env        (sample environment file)
+# The resulting dist/simple-file-browser/ directory contains:
+#   - simple-file-browser            (statically-linked binary; template.html is embedded)
+#   - simple-file-browser.service    (systemd unit)
+#   - simple-file-browser.env        (sample environment file)
 #   - install.sh            (installer script)
 #
 # Usage:
@@ -17,7 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PACKAGE_NAME="upload2dir"
+PACKAGE_NAME="simple-file-browser"
 STAGING_DIR="$SCRIPT_DIR/dist"
 DIST_DIR="$STAGING_DIR/$PACKAGE_NAME"
 ARCHIVE_PATH="$SCRIPT_DIR/${PACKAGE_NAME}.zip"
@@ -31,8 +31,8 @@ rm -rf "$STAGING_DIR"
 mkdir -p "$DIST_DIR"
 
 cp "$SCRIPT_DIR/$PACKAGE_NAME"          "$DIST_DIR/$PACKAGE_NAME"
-cp "$SCRIPT_DIR/upload2dir.service"     "$DIST_DIR/upload2dir.service"
-cp "$SCRIPT_DIR/upload2dir.env"         "$DIST_DIR/upload2dir.env"
+cp "$SCRIPT_DIR/simple-file-browser.service"     "$DIST_DIR/simple-file-browser.service"
+cp "$SCRIPT_DIR/simple-file-browser.env"         "$DIST_DIR/simple-file-browser.env"
 cp "$SCRIPT_DIR/install.sh"             "$DIST_DIR/install.sh"
 
 chmod +x "$DIST_DIR/$PACKAGE_NAME" "$DIST_DIR/install.sh"

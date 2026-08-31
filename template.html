@@ -1147,7 +1147,7 @@
                 } else {
                     // Remember auth for 10 minutes so the next delete only
                     // asks for confirmation instead of the password again.
-                    document.cookie = "upload2dir_auth=1; path=/; max-age=600; SameSite=Lax"
+                    document.cookie = "simple_file_browser_auth=1; path=/; max-age=600; SameSite=Lax"
                     window.location.reload()
                 }
             } catch (e) {
@@ -1158,7 +1158,7 @@
         var deleteFile = async (file) => {
             // Cookie set by the server after a successful password check.
             var hasAuth = document.cookie.split(';').some(function (c) {
-                return c.trim().startsWith('upload2dir_auth=')
+                return c.trim().startsWith('simple_file_browser_auth=')
             })
             if (hasAuth) {
                 if (!window.confirm("确认删除 " + file + " ?")) {

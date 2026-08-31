@@ -1,13 +1,12 @@
-# upload2dir
+# simple-file-browser
 
 A small standalone HTTP file server that exposes a single directory over
 the network with browse / download / upload / delete / create-directory
 support. Built on [Gin](https://github.com/gin-gonic/gin) with a custom
 browse page embedded into the binary at build time.
 
-Historically this project was a Caddy plugin (`caddyupload2dir`); it has
-been refactored into a self-contained binary so `template.html` no longer
-needs to be shipped alongside the executable.
+The browse page is embedded into the binary at build time, so
+`template.html` no longer needs to be shipped alongside the executable.
 
 ## Features
 
@@ -44,8 +43,8 @@ The binary is configured entirely via environment variables:
 ## Build & Run
 
 ```sh
-go build -o upload2dir ./...
-HOME=/srv/upload2dir PORT=8080 ADMIN_PASSWORD='replace-me' ./upload2dir
+go build -o simple-file-browser ./...
+HOME=/srv/simple-file-browser PORT=8080 ADMIN_PASSWORD='replace-me' ./simple-file-browser
 ```
 
 Then browse to <http://localhost:8080/>.
@@ -58,8 +57,8 @@ overwritten.
 
 ## Install as a systemd service
 
-`build.sh` compiles the binary and produces `upload2dir.zip` that
-extracts into a single top-level `upload2dir/` directory containing the
+`build.sh` compiles the binary and produces `simple-file-browser.zip` that
+extracts into a single top-level `simple-file-browser/` directory containing the
 binary, a systemd unit, a sample env file, and the installer:
 
 ```sh
@@ -75,20 +74,20 @@ sudo ./install.sh
 
 `install.sh`:
 
-1. installs the `upload2dir` binary to `/usr/local/bin/`
-2. installs the systemd unit as `/etc/systemd/system/upload2dir.service`
-3. installs (or backs up + refreshes) `/etc/upload2dir.env`
-4. creates `/srv/upload2dir` if missing
+1. installs the `simple-file-browser` binary to `/usr/local/bin/`
+2. installs the systemd unit as `/etc/systemd/system/simple-file-browser.service`
+3. installs (or backs up + refreshes) `/etc/simple-file-browser.env`
+4. creates `/srv/simple-file-browser` if missing
 5. reloads systemd and enables + starts the service
 
-Edit `/etc/upload2dir.env` to change the port, served root, or admin
-password, then `systemctl restart upload2dir.service`.
+Edit `/etc/simple-file-browser.env` to change the port, served root, or admin
+password, then `systemctl restart simple-file-browser.service`.
 
 Useful commands after install:
 
 ```sh
-systemctl status upload2dir.service
-journalctl -u upload2dir.service -f
+systemctl status simple-file-browser.service
+journalctl -u simple-file-browser.service -f
 ```
 
 ## HTTP surface

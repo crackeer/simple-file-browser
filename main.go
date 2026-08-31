@@ -1,4 +1,4 @@
-// Command upload2dir serves a directory over HTTP with browse, download,
+// Command simple-file-browser serves a directory over HTTP with browse, download,
 // upload, delete and create-directory support.
 //
 // It is a standalone replacement for the previous Caddy plugin variant and
@@ -73,7 +73,7 @@ func main() {
 	// method inside handle().
 	r.Any("/*reqpath", srv.handle)
 
-	log.Printf("upload2dir listening on %s, serving %s (admin_password set: %t)",
+	log.Printf("simple-file-browser listening on %s, serving %s (admin_password set: %t)",
 		listen, absRoot, adminPassword != "")
 
 	// http.Server.Handler is set by gin; use ListenAndServe directly via r.Run

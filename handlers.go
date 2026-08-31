@@ -16,7 +16,7 @@ import (
 )
 
 // Auth cookie set by the client itself after a successful password check.
-const authCookieName = "upload2dir_auth"
+const authCookieName = "simple_file_browser_auth"
 
 // handle dispatches a request to the appropriate handler based on HTTP method.
 // The URL path (relative to the root directory) is passed via the "reqpath"
@@ -190,7 +190,7 @@ func (s *Server) handleUpload(c *gin.Context, urlPath string) {
 
 // handleDelete removes a file or directory (including non-empty directories).
 // When ADMIN_PASSWORD is configured, the client must either present the
-// upload2dir_auth cookie (set by the client itself after a successful
+// simple_file_browser_auth cookie (set by the client itself after a successful
 // password check) or supply the matching value via the X-Admin-Password
 // header; comparison is constant-time.
 func (s *Server) handleDelete(c *gin.Context, urlPath string) {
