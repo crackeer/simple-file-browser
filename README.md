@@ -31,20 +31,18 @@ The binary is configured entirely via environment variables:
 | Variable         | Default | Purpose                                                                       |
 |------------------|---------|-------------------------------------------------------------------------------|
 | `PORT`           | `8080`  | TCP port to listen on                                                          |
-| `HOME`           | `.`     | Root directory to serve. Files and directories under this path are exposed.    |
+| `HOME_DIR`       | `.`     | Root directory to serve. Files and directories under this path are exposed.    |
 | `ADMIN_PASSWORD` | *empty* | If set, `DELETE` requests must include `X-Admin-Password: <value>`. If unset, deletes are unauthenticated (matches the original behaviour). |
 
-> ⚠️ `HOME` is intentionally reused as the served-root variable so it
-> plays nicely with systemd. If the process inherits a real user's
-> `HOME` (for example when run from a shell), every file in that home
-> directory becomes writable/deletable over HTTP. Set `HOME` explicitly
-> to a dedicated data directory.
+> ⚠️ Every file under `HOME_DIR` becomes browsable, downloadable,
+> uploadable and deletable over HTTP. Always point `HOME_DIR` at a
+> dedicated data directory rather than a real user's home directory.
 
 ## Build & Run
 
 ```sh
 go build -o simple-file-browser ./...
-HOME=/srv/simple-file-browser PORT=8080 ADMIN_PASSWORD='replace-me' ./simple-file-browser
+HOME_DIR=/srv/simple-file-browser PORT=8080 ADMIN_PASSWORD='replace-me' ./simple-file-browser
 ```
 
 Then browse to <http://localhost:8080/>.

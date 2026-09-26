@@ -52,7 +52,7 @@ fi
 echo ">> Installing env file  -> $ENV_DEST"
 install -m 0644 "$SRC_DIR/simple-file-browser.env" "$ENV_DEST"
 
-# Ensure the served root exists; if the operator changes HOME in
+# Ensure the served root exists; if the operator changes HOME_DIR in
 # simple-file-browser.env they are responsible for creating that directory.
 DEFAULT_ROOT="/srv/simple-file-browser"
 if [ ! -d "$DEFAULT_ROOT" ]; then

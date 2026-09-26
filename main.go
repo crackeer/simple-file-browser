@@ -5,7 +5,7 @@
 // is configured entirely via environment variables:
 //
 //	PORT            listen port (default: 8080)
-//	HOME            root directory to serve (default: current working dir)
+//	HOME_DIR        root directory to serve (default: current working dir)
 //	ADMIN_PASSWORD  if set, DELETE requests must present this value in the
 //	                X-Admin-Password header. If unset, deletes are open.
 package main
@@ -38,11 +38,11 @@ type Server struct {
 func main() {
 	listen := ":" + getEnv("PORT", "8080")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
-	root := getEnv("HOME", ".")
+	root := getEnv("HOME_DIR", ".")
 
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
-		log.Fatalf("resolve HOME %q: %v", root, err)
+		log.Fatalf("resolve HOME_DIR %q: %v", root, err)
 	}
 	info, err := os.Stat(absRoot)
 	if err != nil {

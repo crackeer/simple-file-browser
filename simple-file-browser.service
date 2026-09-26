@@ -8,7 +8,7 @@ Wants=network-online.target
 Type=simple
 # Defaults; overridden by /etc/simple-file-browser.env if present.
 Environment=PORT=8080
-Environment=HOME=/srv/simple-file-browser
+Environment=HOME_DIR=/srv/simple-file-browser
 Environment=ADMIN_PASSWORD=admin
 EnvironmentFile=-/etc/simple-file-browser.env
 ExecStart=/usr/local/bin/simple-file-browser
