@@ -14,6 +14,7 @@ import (
 	_ "embed"
 	"html/template"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,6 +22,40 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// init registers MIME type mappings for extensions that browsers can
+// render inline (mostly text formats) so http.ServeFile sets a
+// Content-Type that browsers display instead of downloading. Without
+// these, less-common extensions fall through to content sniffing and may
+// be treated as a binary download.
+func init() {
+	// 纯文本类，浏览器可直接渲染
+	mime.AddExtensionType(".md", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".markdown", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".log", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".yaml", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".yml", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".toml", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".ini", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".conf", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".sql", "text/plain; charset=utf-8")
+	mime.AddExtensionType(".csv", "text/csv; charset=utf-8")
+	mime.AddExtensionType(".tsv", "text/tab-separated-values; charset=utf-8")
+	// 富文本/代码（部分浏览器有原生预览能力）
+	mime.AddExtensionType(".json", "application/json; charset=utf-8")
+	mime.AddExtensionType(".xml", "text/xml; charset=utf-8")
+	mime.AddExtensionType(".rss", "application/rss+xml; charset=utf-8")
+	mime.AddExtensionType(".atom", "application/atom+xml; charset=utf-8")
+	// 图片类
+	mime.AddExtensionType(".webp", "image/webp")
+	mime.AddExtensionType(".avif", "image/avif")
+	mime.AddExtensionType(".heic", "image/heic")
+	mime.AddExtensionType(".svgz", "image/svg+xml")
+	// 视频类（浏览器内联播放）
+	mime.AddExtensionType(".ts", "video/mp2t")
+	mime.AddExtensionType(".m3u8", "application/vnd.apple.mpegurl")
+	mime.AddExtensionType(".mpd", "application/dash+xml")
+}
 
 // browseTemplateHTML is the file_server browse page shipped with this repo.
 // It is embedded at build time so the compiled binary is fully self-contained.
