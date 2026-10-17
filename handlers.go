@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -31,7 +32,14 @@ func (s *Server) handle(c *gin.Context) {
 	case http.MethodGet, http.MethodHead:
 		s.handleGet(c, urlPath)
 	case http.MethodPost:
-		s.handleCreateDir(c, urlPath)
+		switch strings.ToLower(c.Query("action")) {
+		case "zip":
+			s.handleZip(c, urlPath)
+		case "unzip":
+			s.handleUnzip(c, urlPath)
+		default:
+			s.handleCreateDir(c, urlPath)
+		}
 	case http.MethodPut:
 		s.handleUpload(c, urlPath)
 	case http.MethodDelete:
@@ -219,4 +227,236 @@ func (s *Server) handleDelete(c *gin.Context, urlPath string) {
 		return
 	}
 	c.Status(http.StatusOK)
+}
+
+// nonConflictingPath returns candidate unchanged if nothing exists there,
+// otherwise it appends a "-{unix_nano}" suffix so an existing file or
+// directory is never overwritten (mirrors handleUpload's behaviour).
+func nonConflictingPath(candidate string) string {
+	if _, err := os.Stat(candidate); err != nil {
+		// Treat any stat error (including not-exist) as "free to use".
+		return candidate
+	}
+	return fmt.Sprintf("%s-%d", candidate, time.Now().UnixNano())
+}
+
+// handleZip compresses the item at urlPath into "{name}.zip" placed in the
+// same directory. When that archive name already exists, a timestamp suffix
+// is appended. Both single files and directories (recursively) are supported;
+// archive entry names are relative to the source's parent so the archive
+// contains the item under its own name.
+func (s *Server) handleZip(c *gin.Context, urlPath string) {
+	src, err := s.resolve(urlPath)
+	if err != nil {
+		c.String(http.StatusBadRequest, "%v", err)
+		return
+	}
+	if src == filepath.Clean(s.RootDir) {
+		c.String(http.StatusForbidden, "cannot zip root")
+		return
+	}
+	if _, err := os.Stat(src); err != nil {
+		if os.IsNotExist(err) {
+			c.String(http.StatusNotFound, "not found")
+			return
+		}
+		c.String(http.StatusInternalServerError, "stat %s: %v", src, err)
+		return
+	}
+
+	parent := filepath.Dir(src)
+	base := filepath.Base(src)
+	out := nonConflictingPath(filepath.Join(parent, base+".zip"))
+
+	// O_EXCL guards against a concurrent request creating the same target.
+	zf, err := os.OpenFile(out, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "create archive %s: %v", out, err)
+		return
+	}
+	zw := zip.NewWriter(zf)
+
+	walkErr := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		// Never archive the output file itself (it lives in parent, so it
+		// won't be visited when zipping a single file, but guard anyway).
+		if p == out {
+			return nil
+		}
+		// Entry name relative to the source parent, using forward slashes.
+		rel, relErr := filepath.Rel(parent, p)
+		if relErr != nil {
+			return relErr
+		}
+		name := filepath.ToSlash(rel)
+
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			return infoErr
+		}
+		// Skip anything that isn't a regular file or directory (e.g. symlinks,
+		// devices) to keep archives portable and avoid following links.
+		if !info.Mode().IsRegular() && !d.IsDir() {
+			return nil
+		}
+
+		hdr, hdrErr := zip.FileInfoHeader(info)
+		if hdrErr != nil {
+			return hdrErr
+		}
+		hdr.Name = name
+		if d.IsDir() {
+			hdr.Name += "/"
+			hdr.Method = zip.Store
+		} else {
+			hdr.Method = zip.Deflate
+		}
+
+		w, createErr := zw.CreateHeader(hdr)
+		if createErr != nil {
+			return createErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		in, openErr := os.Open(p)
+		if openErr != nil {
+			return openErr
+		}
+		defer in.Close()
+		_, copyErr := io.Copy(w, in)
+		return copyErr
+	})
+
+	if walkErr != nil {
+		zw.Close()
+		zf.Close()
+		os.Remove(out)
+		c.String(http.StatusInternalServerError, "zip %s: %v", base, walkErr)
+		return
+	}
+	if err := zw.Close(); err != nil {
+		zf.Close()
+		os.Remove(out)
+		c.String(http.StatusInternalServerError, "finalize archive: %v", err)
+		return
+	}
+	if err := zf.Close(); err != nil {
+		os.Remove(out)
+		c.String(http.StatusInternalServerError, "close archive: %v", err)
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+// handleUnzip extracts the .zip file at urlPath into a new folder (named via
+// the "dest" query param) created in the same directory as the archive. When
+// the destination folder name already exists, a timestamp suffix is appended.
+// Every archive entry is validated to resolve inside the destination folder
+// (zip-slip protection) before anything is written.
+func (s *Server) handleUnzip(c *gin.Context, urlPath string) {
+	src, err := s.resolve(urlPath)
+	if err != nil {
+		c.String(http.StatusBadRequest, "%v", err)
+		return
+	}
+	info, err := os.Stat(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.String(http.StatusNotFound, "not found")
+			return
+		}
+		c.String(http.StatusInternalServerError, "stat %s: %v", src, err)
+		return
+	}
+	if !info.Mode().IsRegular() {
+		c.String(http.StatusBadRequest, "not a file")
+		return
+	}
+	if !strings.EqualFold(filepath.Ext(src), ".zip") {
+		c.String(http.StatusBadRequest, "not a zip file")
+		return
+	}
+
+	// dest is a plain folder name; strip any path components a client may
+	// have supplied so extraction always lands beside the archive.
+	destName := filepath.Base(filepath.FromSlash(strings.TrimSpace(c.Query("dest"))))
+	if destName == "" || destName == "." || destName == string(filepath.Separator) {
+		c.String(http.StatusBadRequest, "missing dest folder name")
+		return
+	}
+
+	parent := filepath.Dir(src)
+	destDir := nonConflictingPath(filepath.Join(parent, destName))
+	// Defence in depth: make sure the destination is still under root.
+	if destDir != filepath.Clean(s.RootDir) &&
+		!strings.HasPrefix(destDir, filepath.Clean(s.RootDir)+string(filepath.Separator)) {
+		c.String(http.StatusBadRequest, "dest escapes root")
+		return
+	}
+
+	zr, err := zip.OpenReader(src)
+	if err != nil {
+		c.String(http.StatusBadRequest, "open zip: %v", err)
+		return
+	}
+	defer zr.Close()
+
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		c.String(http.StatusInternalServerError, "mkdir %s: %v", destDir, err)
+		return
+	}
+	destPrefix := destDir + string(filepath.Separator)
+
+	for _, f := range zr.File {
+		name := f.Name
+		// Reject absolute paths and any traversal in the raw entry name
+		// before we touch the filesystem.
+		if strings.HasPrefix(name, "/") || strings.HasPrefix(name, "\\") {
+			c.String(http.StatusBadRequest, "zip entry %q has absolute path", f.Name)
+			return
+		}
+		target := filepath.Join(destDir, filepath.FromSlash(name))
+		targetClean := filepath.Clean(target)
+		if targetClean != filepath.Clean(destDir) &&
+			!strings.HasPrefix(targetClean, destPrefix) {
+			c.String(http.StatusBadRequest, "zip entry %q escapes destination", f.Name)
+			return
+		}
+
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(targetClean, 0o755); err != nil {
+				c.String(http.StatusInternalServerError, "mkdir %s: %v", targetClean, err)
+				return
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(targetClean), 0o755); err != nil {
+			c.String(http.StatusInternalServerError, "mkdir parent of %s: %v", targetClean, err)
+			return
+		}
+		if err := extractZipEntry(f, targetClean); err != nil {
+			c.String(http.StatusInternalServerError, "extract %q: %v", f.Name, err)
+			return
+		}
+	}
+	c.Status(http.StatusOK)
+}
+
+// extractZipEntry streams a single zip entry to the target path on disk.
+func extractZipEntry(f *zip.File, target string) error {
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, rc)
+	return err
 }

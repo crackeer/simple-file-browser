@@ -14,6 +14,8 @@ The browse page is embedded into the binary at build time, so
   client-side filter, and breadcrumb navigation
 - `PUT` file upload (multipart `file` field) with progress modal
 - `POST` create directory
+- `POST ?action=zip` compress a file or directory into a `.zip`
+- `POST ?action=unzip` extract a `.zip` into a new folder
 - `DELETE` file or directory (recursive)
 - Range/`If-Modified-Since` aware file downloads via `http.ServeFile`
 - Optional admin password for `DELETE` (constant-time compare)
@@ -52,6 +54,23 @@ Then browse to <http://localhost:8080/>.
 If a file with the same name already exists, the upload is stored
 alongside it under `{name}-{unix_nano}` so the existing file is never
 overwritten.
+
+## Zip / Unzip
+
+Each row in the browse UI has a 压缩 (zip) and 解压 (unzip) button.
+
+- **Zip** compresses the selected file or directory into `{name}.zip` in the
+  same directory. Directories are archived recursively. If `{name}.zip`
+  already exists, a `-{unix_nano}` suffix is appended so nothing is
+  overwritten. The UI asks for confirmation first.
+- **Unzip** only operates on `.zip` files (validated client- and
+  server-side). You are prompted for a new destination folder name; the
+  archive is extracted beneath that folder in the same directory. If the
+  folder name already exists, a `-{unix_nano}` suffix is appended.
+
+Extraction is protected against "zip-slip": any entry whose path would
+resolve outside the destination folder (absolute paths or `..` traversal) is
+rejected and nothing is written.
 
 ## Install as a systemd service
 
@@ -95,6 +114,8 @@ journalctl -u simple-file-browser.service -f
 | `GET`    | `/dir/`         | Render the browse page for `dir`                                        |
 | `GET`    | `/path/to/file` | Download the file                                                       |
 | `POST`   | `/dir/name`     | Create directory `name` under `dir` (idempotent, recursive)             |
+| `POST`   | `/dir/name?action=zip` | Compress `dir/name` into `dir/name.zip` (timestamp suffix on conflict) |
+| `POST`   | `/dir/a.zip?action=unzip&dest=<folder>` | Extract `dir/a.zip` into new `dir/<folder>/` (timestamp suffix on conflict) |
 | `PUT`    | `/dir/name`     | Upload a file to `dir/name`; multipart form field `file`                |
 | `DELETE` | `/path`         | Remove file or directory. Requires `X-Admin-Password` when configured.  |
 

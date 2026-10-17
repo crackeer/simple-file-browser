@@ -778,6 +778,8 @@
                         <td class="hideable"><time datetime="{{.HumanModTime " 2006-01-02T15:04:05Z"}}">{{.HumanModTime
                                 "01/02/2006 03:04:05 PM -07:00"}}</time></td>
                         <td class="hideable">
+                            <button onclick="zipFile('{{.Name}}')">压缩</button>
+                            <button onclick="unzipFile('{{.Name}}')">解压</button>
                             <button onclick="deleteFile('{{.Name}}')">删除</button>
                         </td>
                     </tr>
@@ -1191,6 +1193,70 @@
                     window.location.reload()
                 }
             } catch (e) {
+                alert(e.message)
+            }
+        }
+
+        var loadingEl = document.getElementById('loading')
+
+        function showLoading() {
+            if (loadingEl) loadingEl.style.display = ''
+        }
+
+        function hideLoading() {
+            if (loadingEl) loadingEl.style.display = 'none'
+        }
+
+        // zipFile compresses the item into "{name}.zip" in the current
+        // directory after a confirmation dialog.
+        var zipFile = async (name) => {
+            if (!window.confirm("确认压缩 " + name + " ?")) {
+                return
+            }
+            showLoading()
+            try {
+                let result = await fetch(buildDirActionUrl(name) + "?action=zip", {
+                    method: 'POST'
+                })
+                if (!result.ok) {
+                    let message = await result.text()
+                    hideLoading()
+                    alert(message || result.statusText)
+                } else {
+                    window.location.reload()
+                }
+            } catch (e) {
+                hideLoading()
+                alert(e.message)
+            }
+        }
+
+        // unzipFile validates the item is a .zip, prompts for a target folder
+        // name, and extracts the archive into that new folder.
+        var unzipFile = async (name) => {
+            if (!name.toLowerCase().endsWith('.zip')) {
+                alert("只能解压 .zip 文件")
+                return
+            }
+            let folder = window.prompt("请输入解压目标文件夹名称", name.replace(/\.zip$/i, ''))
+            if (folder === null || folder.trim().length < 1) {
+                return
+            }
+            showLoading()
+            try {
+                let url = buildDirActionUrl(name) + "?action=unzip&dest=" + encodeURIComponent(folder.trim())
+                let result = await fetch(url, {
+                    method: 'POST'
+                })
+                if (!result.ok) {
+                    let message = await result.text()
+                    hideLoading()
+                    alert(message || result.statusText)
+                } else {
+                    window.location.reload()
+                }
+            } catch (e) {
+                hideLoading()
                 alert(e.message)
             }
         }
